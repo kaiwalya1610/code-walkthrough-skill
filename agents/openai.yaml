@@ -1,4 +1,4 @@
 interface:
-  display_name: "Code Walkthrough"
+  display_name: "Code Walkthrough Skill"
   short_description: "Visual dry runs with real code and changing data"
   default_prompt: "Use $code-walkthrough to map this codebase and build an interactive, source-linked dry run of the requested feature with synthetic data."

@@ -1,4 +1,4 @@
-# Code Walkthrough for Codex
+# Code Walkthrough Skill
 
 Create an interactive, step-by-step dry run of a codebase or feature. The dashboard puts highlighted source code beside the changing values from a synthetic example. It supports scenarios, branches, loops, retries, concurrent lanes, source-linked checkpoints, a codebase map, and light and dark themes. The finished HTML works offline.
 
@@ -8,7 +8,7 @@ Clone this repository into your Codex skills directory:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-git clone https://github.com/kaiwalya1610/codex-code-walkthrough.git "${CODEX_HOME:-$HOME/.codex}/skills/code-walkthrough"
+git clone https://github.com/kaiwalya1610/code-walkthrough-skill.git "${CODEX_HOME:-$HOME/.codex}/skills/code-walkthrough"
 ```
 
 If you already installed this skill from this repository, update it with:
