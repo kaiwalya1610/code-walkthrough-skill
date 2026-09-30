@@ -1,0 +1,568 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Code Walkthrough",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repoLabel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "inventoryCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/coverage"
+          },
+          "minItems": 1
+        },
+        "entrypoints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "inventoryCount",
+        "coverage",
+        "entrypoints",
+        "findings",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "graph": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          },
+          "minItems": 1
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "nodes",
+        "edges"
+      ],
+      "additionalProperties": false
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scenario"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "version",
+    "title",
+    "summary",
+    "scope",
+    "repoLabel",
+    "analysis",
+    "graph",
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "focus": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "start",
+        "end",
+        "focus"
+      ],
+      "additionalProperties": false
+    },
+    "visual": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "records",
+            "table",
+            "queue",
+            "metrics",
+            "text",
+            "tree",
+            "bars"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "caption": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "observed",
+            "mocked",
+            "replayed",
+            "inferred"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+            }
+          },
+          "required": [
+            "path",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "detail"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "observed",
+                  "mocked",
+                  "replayed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "record"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "record"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chapter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1
+        },
+        "causes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+          },
+          "minItems": 0
+        },
+        "phase": {
+          "enum": [
+            "before",
+            "after",
+            "return",
+            "inferred"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          },
+          "minItems": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "state": {
+          "type": "object"
+        },
+        "visuals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/visual"
+          },
+          "minItems": 1
+        },
+        "iteration": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "decision": {
+          "type": "object",
+          "properties": {
+            "condition": {
+              "type": "string",
+              "minLength": 1
+            },
+            "resultPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "taken": {
+              "type": "string",
+              "minLength": 1
+            },
+            "notTaken": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "condition",
+            "resultPath",
+            "taken",
+            "notTaken"
+          ],
+          "additionalProperties": false
+        },
+        "watch": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "label",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "chapter",
+        "explanation",
+        "node",
+        "lane",
+        "causes",
+        "phase",
+        "sources",
+        "evidence",
+        "visuals"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evidence": {
+                "properties": {
+                  "kind": {
+                    "const": "inferred"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "phase": {
+                "const": "inferred"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "state"
+              ]
+            },
+            "properties": {
+              "phase": {
+                "enum": [
+                  "before",
+                  "after",
+                  "return"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {},
+        "outcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/step"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "summary",
+        "input",
+        "outcome",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "x": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "description",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "read",
+            "skimmed",
+            "unread",
+            "excluded"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

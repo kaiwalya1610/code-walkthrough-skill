@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>__TITLE__</title>
+  <style>__STYLE__
+__TOKENS__
+.code-lines{background:transparent!important}</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><div><p id="repo-label" class="repo-label"></p><h1 id="title"></h1></div></div>
+    <div class="top-actions">
+      <button id="theme" class="secondary" type="button"></button>
+      <button id="open-overview" class="secondary">Codebase map &amp; evidence</button>
+    </div>
+  </header>
+  <nav class="scenario-bar" aria-label="Walkthrough selection">
+    <label>Scenario <select id="scenario"></select></label>
+    <p id="scenario-summary"></p>
+    <div id="scenario-stats" class="scenario-stats"></div>
+  </nav>
+  <main class="workspace">
+    <section class="code-panel" aria-label="Source code">
+      <div class="panel-heading"><h2>The code</h2><span id="phase" class="badge"></span></div>
+      <div id="file-tabs" class="file-tabs" role="tablist" aria-label="Source files"></div>
+      <div class="source-meta"><span id="source-location"></span><span id="language"></span></div>
+      <div id="code" class="code-scroll" tabindex="0" aria-label="Highlighted source code"></div>
+      <section id="watch" class="watch" aria-label="Values in focus"></section>
+      <details class="evidence"><summary id="evidence-summary"></summary><div id="evidence-body"></div></details>
+    </section>
+    <section class="data-panel" aria-label="Visual dry run">
+      <div class="panel-heading"><h2>The dry run</h2><span class="heading-badges"><span id="evidence-badge" class="badge ev"></span><span id="lane" class="badge"></span></span></div>
+      <div class="step-story"><p id="chapter" class="chapter"></p><h2 id="step-title"></h2><p id="explanation"></p></div>
+      <details class="minimap" open aria-label="Where this step sits in the codebase map"><summary id="minimap-head"></summary><div id="minimap"></div></details>
+      <div id="input" class="input-box"></div>
+      <div id="decision"></div>
+      <div id="visuals"></div>
+      <section class="delta"><h3>What changed</h3><div id="changes"></div></section>
+      <div id="causes"></div>
+      <details id="lane-details" class="lane-details"><summary>Event order &amp; run lanes</summary><p class="muted">Replay order follows this recording. Separate lanes can overlap; arrows show declared causal links.</p><div id="lane-chart" class="lane-chart"></div><div id="lanes"></div></details>
+      <div id="outcome" class="outcome" hidden></div>
+    </section>
+  </main>
+  <footer class="transport">
+    <div id="timeline" class="timeline"></div>
+    <div class="transport-row">
+      <div class="transport-buttons"><button id="previous" class="secondary" aria-label="Previous step">← Back</button><button id="play" class="secondary" aria-label="Play walkthrough">Play</button><button id="next" aria-label="Next step">Next →</button></div>
+      <div class="progress-control"><label for="scrubber" id="position"></label><input id="scrubber" type="range" min="0" value="0" aria-label="Walkthrough progress"></div>
+      <label class="jump-label">Jump to step <select id="jump"></select></label>
+      <label class="speed-label">Pace <select id="speed"><option value="6000">6 sec</option><option value="3000">3 sec</option><option value="10000">10 sec</option></select></label>
+      <p class="keys" aria-hidden="true"><kbd>←</kbd><kbd>→</kbd> step <kbd>Space</kbd> play <kbd>M</kbd> map <kbd>T</kbd> theme</p>
+    </div>
+    <span id="announcement" class="sr-only" role="status" aria-live="polite"></span>
+  </footer>
+  <dialog id="overview"><div class="dialog-heading"><h2>Codebase map &amp; evidence</h2><button id="close-overview" class="secondary">Close</button></div><div id="overview-body"></div></dialog>
+  <script type="application/json" id="walkthrough-data">__DATA__</script>
+  <script>__SCRIPT__</script>
+</body>
+</html>
