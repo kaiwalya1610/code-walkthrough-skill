@@ -10,52 +10,97 @@ __TOKENS__
 .code-lines{background:transparent!important}</style>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><div><p id="repo-label" class="repo-label"></p><h1 id="title"></h1></div></div>
+    <button id="toggle-outline" class="icon-btn outline-toggle" type="button" aria-controls="outline" aria-expanded="true" aria-label="Toggle outline"><span aria-hidden="true">☰</span></button>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><div class="brand-text"><p id="repo-label" class="repo-label"></p><h1 id="title"></h1></div></div>
+    <nav class="views" role="tablist" aria-label="Sections">
+      <button id="tab-overview" role="tab" data-view="overview" aria-controls="view-overview"><span class="tab-num" aria-hidden="true">1</span>Overview</button>
+      <button id="tab-walk" role="tab" data-view="walk" aria-controls="view-walk"><span class="tab-num" aria-hidden="true">2</span>Walkthrough</button>
+      <button id="tab-quiz" role="tab" data-view="quiz" aria-controls="view-quiz"><span class="tab-num" aria-hidden="true">3</span>Quiz<span id="quiz-badge" class="tab-badge"></span></button>
+    </nav>
     <div class="top-actions">
-      <button id="theme" class="secondary" type="button"></button>
-      <button id="open-overview" class="secondary">Codebase map &amp; evidence</button>
+      <div id="progress" class="progress-ring" role="img"></div>
+      <button id="theme" class="icon-btn" type="button"></button>
     </div>
   </header>
-  <nav class="scenario-bar" aria-label="Walkthrough selection">
-    <label>Scenario <select id="scenario"></select></label>
-    <p id="scenario-summary"></p>
-    <div id="scenario-stats" class="scenario-stats"></div>
-  </nav>
-  <main class="workspace">
-    <section class="code-panel" aria-label="Source code">
-      <div class="panel-heading"><h2>The code</h2><span id="phase" class="badge"></span></div>
-      <div id="file-tabs" class="file-tabs" role="tablist" aria-label="Source files"></div>
-      <div class="source-meta"><span id="source-location"></span><span id="language"></span></div>
-      <div id="code" class="code-scroll" tabindex="0" aria-label="Highlighted source code"></div>
-      <section id="watch" class="watch" aria-label="Values in focus"></section>
-      <details class="evidence"><summary id="evidence-summary"></summary><div id="evidence-body"></div></details>
+
+  <main id="main">
+    <section id="view-overview" class="view view-overview" role="tabpanel" aria-labelledby="tab-overview" hidden></section>
+
+    <section id="view-walk" class="view view-walk" role="tabpanel" aria-labelledby="tab-walk" hidden>
+      <aside id="outline" class="outline" aria-label="Walkthrough outline">
+        <div class="outline-head">
+          <label class="field-label" for="scenario">Scenario</label>
+          <select id="scenario"></select>
+          <p id="scenario-summary" class="scenario-summary"></p>
+          <div class="outline-progress"><span id="outline-progress-text"></span><span class="meter"><span id="outline-meter"></span></span></div>
+        </div>
+        <nav id="outline-tree" class="outline-tree" aria-label="Chapters and steps"></nav>
+        <button id="outline-quiz" class="outline-quiz" type="button" data-view="quiz"></button>
+        <p class="keys" aria-hidden="true"><kbd>←</kbd><kbd>→</kbd> step <kbd>Space</kbd> play <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> sections <kbd>[</kbd> outline <kbd>T</kbd> theme</p>
+      </aside>
+      <div class="outline-scrim" id="outline-scrim" hidden></div>
+
+      <div class="workspace">
+        <section class="code-panel" aria-label="Source code">
+          <div class="code-head">
+            <div id="file-tabs" class="file-tabs" role="tablist" aria-label="Source files"></div>
+            <span id="phase" class="badge phase"></span>
+          </div>
+          <div id="stack" class="stack" aria-label="Call stack"></div>
+          <div class="source-meta"><span id="source-location"></span><span id="language"></span></div>
+          <div id="code" class="code-scroll" tabindex="0" aria-label="Highlighted source code"></div>
+          <section id="watch" class="watch" aria-label="Values in focus"></section>
+          <details class="evidence" id="evidence"><summary id="evidence-summary"></summary><div id="evidence-body"></div></details>
+        </section>
+
+        <section id="story" class="story-panel" aria-label="Visual dry run">
+          <div class="story-head">
+            <nav id="crumbs" class="crumbs" aria-label="Location"></nav>
+            <div id="tags" class="tags"></div>
+          </div>
+          <div id="chapter-intro"></div>
+          <h2 id="step-title" class="step-title"></h2>
+          <p id="explanation" class="explanation"></p>
+          <div id="flow" class="flow" aria-label="Where this step sits in the flow"></div>
+          <div id="decision"></div>
+          <section id="line-notes" class="line-notes" aria-label="Line by line"></section>
+          <div id="visuals" class="visuals"></div>
+          <section id="insights" class="insights" aria-label="Under the hood"></section>
+          <div id="outcome" class="outcome" hidden></div>
+          <div class="more-panels">
+            <details id="changes-box" class="fold"><summary>What changed <span id="change-count" class="count"></span></summary><div id="changes"></div></details>
+            <details id="input-box" class="fold"><summary id="input-summary"></summary><div id="input"></div></details>
+            <details id="lane-details" class="fold"><summary>Run lanes &amp; causal links</summary><p class="muted">Replay order follows this recording. Separate lanes can overlap; curves show declared causal links.</p><div id="lane-chart" class="lane-chart"></div></details>
+          </div>
+          <div id="causes"></div>
+        </section>
+      </div>
+
+      <footer class="transport">
+        <div class="transport-buttons">
+          <button id="previous" class="secondary" aria-label="Previous step"><span aria-hidden="true">←</span> Back</button>
+          <button id="play" class="secondary" aria-label="Play walkthrough">▶ Play</button>
+          <button id="next" aria-label="Next step">Next <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="scrub">
+          <div id="timeline" class="timeline"></div>
+          <input id="scrubber" class="sr-range" type="range" min="0" value="0" aria-label="Walkthrough progress">
+        </div>
+        <div class="transport-meta">
+          <label for="scrubber" id="position" class="position"></label>
+          <label class="speed-label">Pace <select id="speed"><option value="6000">6 s</option><option value="3000">3 s</option><option value="10000">10 s</option></select></label>
+        </div>
+        <span id="announcement" class="sr-only" role="status" aria-live="polite"></span>
+      </footer>
+      <button id="return-quiz" class="return-quiz" type="button" hidden></button>
     </section>
-    <section class="data-panel" aria-label="Visual dry run">
-      <div class="panel-heading"><h2>The dry run</h2><span class="heading-badges"><span id="evidence-badge" class="badge ev"></span><span id="lane" class="badge"></span></span></div>
-      <div class="step-story"><p id="chapter" class="chapter"></p><h2 id="step-title"></h2><p id="explanation"></p></div>
-      <details class="minimap" open aria-label="Where this step sits in the codebase map"><summary id="minimap-head"></summary><div id="minimap"></div></details>
-      <div id="input" class="input-box"></div>
-      <div id="decision"></div>
-      <div id="visuals"></div>
-      <section class="delta"><h3>What changed</h3><div id="changes"></div></section>
-      <div id="causes"></div>
-      <details id="lane-details" class="lane-details"><summary>Event order &amp; run lanes</summary><p class="muted">Replay order follows this recording. Separate lanes can overlap; arrows show declared causal links.</p><div id="lane-chart" class="lane-chart"></div><div id="lanes"></div></details>
-      <div id="outcome" class="outcome" hidden></div>
-    </section>
+
+    <section id="view-quiz" class="view view-quiz" role="tabpanel" aria-labelledby="tab-quiz" hidden></section>
   </main>
-  <footer class="transport">
-    <div id="timeline" class="timeline"></div>
-    <div class="transport-row">
-      <div class="transport-buttons"><button id="previous" class="secondary" aria-label="Previous step">← Back</button><button id="play" class="secondary" aria-label="Play walkthrough">Play</button><button id="next" aria-label="Next step">Next →</button></div>
-      <div class="progress-control"><label for="scrubber" id="position"></label><input id="scrubber" type="range" min="0" value="0" aria-label="Walkthrough progress"></div>
-      <label class="jump-label">Jump to step <select id="jump"></select></label>
-      <label class="speed-label">Pace <select id="speed"><option value="6000">6 sec</option><option value="3000">3 sec</option><option value="10000">10 sec</option></select></label>
-      <p class="keys" aria-hidden="true"><kbd>←</kbd><kbd>→</kbd> step <kbd>Space</kbd> play <kbd>M</kbd> map <kbd>T</kbd> theme</p>
-    </div>
-    <span id="announcement" class="sr-only" role="status" aria-live="polite"></span>
-  </footer>
-  <dialog id="overview"><div class="dialog-heading"><h2>Codebase map &amp; evidence</h2><button id="close-overview" class="secondary">Close</button></div><div id="overview-body"></div></dialog>
+
+  <div id="term-pop" class="term-pop" role="tooltip" hidden></div>
   <script type="application/json" id="walkthrough-data">__DATA__</script>
   <script>__SCRIPT__</script>
 </body>

@@ -9,6 +9,8 @@ def prepare_orders(orders, emit):
     for index, order in enumerate(orders, 1):
         pending.pop(0)
         valid = order["quantity"] > 0
+        emit(f"check-{index}", pending=pending, accepted=accepted, rejected=rejected,
+             total=total, valid=valid, current=order)
         if valid:
             subtotal = order["quantity"] * order["unit_price"]
             accepted.append({**order, "subtotal": subtotal})

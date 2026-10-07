@@ -1,6 +1,14 @@
 # Code Walkthrough Skill
 
-Create an interactive, step-by-step dry run of a codebase or feature. The dashboard puts highlighted source code beside the changing values from a synthetic example. It supports scenarios, branches, loops, retries, concurrent lanes, source-linked checkpoints, a codebase map, and light and dark themes. The finished HTML works offline.
+Create an interactive, step-by-step dry run of a codebase or feature, then check your understanding with a quiz. The dashboard puts highlighted source code beside the changing values from a synthetic example and explains every focused line with the values this run produced. The finished HTML works offline.
+
+The page has three sections:
+
+- **Overview**: a summary, scenario cards with progress, a codebase map, a chapter-by-chapter learning path, key concepts, and coverage and limits.
+- **Walkthrough**: a chapter/step outline, source with numbered line notes, inline values and a call stack, and a dry-run panel. The panel covers the step story, the branch taken, a line-by-line explanation, a board showing entities moving between collections, and "under the hood" insights (why, gotchas, performance, edge cases).
+- **Quiz**: multiple-choice, fill-in-the-blank (answers can be bound to captured checkpoint values), complete-the-real-code, and put-in-order questions. It covers recall, trace, reason and apply levels, explains every answer, and links back to the steps that teach it.
+
+It also supports branches, loops, retries, concurrent lanes, source-hash-checked checkpoints, keyboard navigation, deep links, and light and dark themes.
 
 ## Install
 
@@ -24,12 +32,12 @@ If `code-walkthrough` already exists as a directory that is not a clone of this 
 From the codebase you want to explain, ask Codex:
 
 ```text
-$code-walkthrough Explain the checkout flow with a visual dry run using synthetic data. Show the happy path, a validation failure, and what each step changes.
+$code-walkthrough Explain the checkout flow with a visual dry run using synthetic data. Show the happy path, a validation failure, and what each step changes, line by line. End with a quiz.
 ```
 
 For a whole repository, ask for its main runtime paths and name any areas you especially want explained. The skill guides Codex through reading the repository, running bounded examples, recording selected values, and building the dashboard. The renderer does not infer a complete execution trace from source files by itself.
 
-The generated page has a source panel, a visual state panel, chapter and step controls, a workflow map, and an evidence label on every step. `observed`, `mocked`, `replayed`, and `inferred` states remain distinguishable. Source hashes and line references are checked when the page is built.
+Every step carries an evidence label, so `observed`, `mocked`, `replayed`, and `inferred` states remain distinguishable. Source hashes, line references and quiz answers are checked when the page is built. The builder also warns when a walkthrough is shallow: steps without line notes, crowded visuals, chapters without insights, or a thin quiz. Add `--strict` to fail on those warnings.
 
 ## Build an example manually
 
@@ -58,4 +66,4 @@ The optional browser test uses Playwright and its Chromium browser:
 node "$SKILL_DIR/tests/browser_smoke.mjs" /tmp/code-walkthrough-example/index.html
 ```
 
-See [SKILL.md](SKILL.md) for the full workflow and [references](references/) for repository analysis, execution capture, and the walkthrough data format.
+See [SKILL.md](SKILL.md) for the full workflow and [references](references/) for repository analysis, execution capture, teaching depth, quiz design, and the walkthrough data format.

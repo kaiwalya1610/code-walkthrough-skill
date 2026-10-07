@@ -120,6 +120,23 @@
         "$ref": "#/$defs/scenario"
       },
       "minItems": 1
+    },
+    "chapters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/chapter"
+      },
+      "minItems": 1
+    },
+    "concepts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/concept"
+      },
+      "minItems": 1
+    },
+    "quiz": {
+      "$ref": "#/$defs/quiz"
     }
   },
   "required": [
@@ -185,7 +202,8 @@
             "metrics",
             "text",
             "tree",
-            "bars"
+            "bars",
+            "board"
           ]
         },
         "title": {
@@ -205,6 +223,27 @@
         },
         "caption": {
           "type": "string"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
         }
       },
       "required": [
@@ -408,6 +447,72 @@
             "additionalProperties": false
           },
           "minItems": 0
+        },
+        "lineNotes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "line",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "insights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "why",
+                  "concept",
+                  "gotcha",
+                  "performance",
+                  "edge-case",
+                  "design"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "callStack": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
         }
       },
       "required": [
@@ -561,6 +666,337 @@
         "path",
         "status",
         "reason"
+      ],
+      "additionalProperties": false
+    },
+    "chapter": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "title",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "concept": {
+      "type": "object",
+      "properties": {
+        "term": {
+          "type": "string",
+          "minLength": 1
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "term",
+        "definition"
+      ],
+      "additionalProperties": false
+    },
+    "quizSource": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "focus": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "start",
+        "end"
+      ],
+      "additionalProperties": false
+    },
+    "blank": {
+      "type": "object",
+      "properties": {
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "from": {
+          "type": "object",
+          "properties": {
+            "scenario": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+            },
+            "step": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "scenario",
+            "step",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caseSensitive": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "question": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+        },
+        "type": {
+          "enum": [
+            "mcq",
+            "fill",
+            "code-fill",
+            "order"
+          ]
+        },
+        "level": {
+          "enum": [
+            "recall",
+            "trace",
+            "reason",
+            "apply"
+          ]
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chapter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scenario": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+              },
+              "step": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+              }
+            },
+            "required": [
+              "scenario",
+              "step"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "source": {
+          "$ref": "#/$defs/quizSource"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "maxItems": 6
+        },
+        "answer": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "minItems": 1
+            }
+          ]
+        },
+        "blanks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/blank"
+          },
+          "minItems": 1
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 3,
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "level",
+        "prompt",
+        "explanation",
+        "refs"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "mcq"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "choices",
+              "answer"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "fill"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "blanks"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "code-fill"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "blanks",
+              "source"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "order"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "items"
+            ]
+          }
+        }
+      ]
+    },
+    "quiz": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intro": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/question"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "questions"
       ],
       "additionalProperties": false
     }

@@ -9,8 +9,11 @@ The authoritative contract is [../assets/walkthrough.schema.json](../assets/walk
 | `version` | Exactly `1`. |
 | `title`, `summary`, `repoLabel`, `scope` | Reader-facing descriptions of exact scope. |
 | `analysis` | `inventoryCount`, `coverage`, `entrypoints`, `findings`, `limitations`. Coverage entries: `path`, `status`, `reason`. Findings/limitations: string arrays. |
-| `graph` | `nodes` and `edges`. Nodes: `id`, short `label`, `description`, integer `x`,`y` pixel coordinates. Edges: `from`,`to`,`label`. Use about 220 px horizontal and 110 px vertical spacing; boxes are 160×50. Cycles allowed. The graph also renders as an always-visible minimap beside each step, so prefer a compact grid (roughly ≤16 nodes, ≤4 per row) and labels of ≤15 characters; split larger systems into subsystem-level nodes. |
+| `graph` | `nodes` and `edges`. Nodes: `id`, short `label`, `description`, integer `x`,`y` pixel coordinates. Edges: `from`,`to`,`label`. Use about 220 px horizontal and 110 px vertical spacing; boxes are 160×50. Cycles and two-way edges are allowed. The full graph is on the Overview; each step shows a compact "you are here" strip of the nodes the scenario visits. Prefer roughly ≤16 nodes, ≤4 per row, and labels of ≤15 characters; split larger systems into subsystem-level nodes. |
 | `scenarios` | Array of `{id,title,summary,input,outcome,steps}`. Input is synthetic JSON. Each scenario starts independently. |
+| `chapters` | Optional. `{title, summary, goals?}` per step chapter. Shown as an intro card when a chapter begins and as the Overview's learning path. Titles must match step `chapter` values. |
+| `concepts` | Optional. `{term, definition}` glossary. The first mention of a term in each piece of prose becomes a definition popover. |
+| `quiz` | Optional in the schema, expected by the skill. `{title?, intro?, passScore?, questions}`. See [quiz-design.md](quiz-design.md). |
 
 IDs contain letters, digits, `.`, `_`, `-`, starting with a letter/digit. Source files must be UTF-8 and at most 2 MB each. Snippets are at most 200 lines; prefer much less. Large values remain inspectable with counted expansion.
 
@@ -43,11 +46,26 @@ IDs contain letters, digits, `.`, `_`, `-`, starting with a letter/digit. Source
     "resultPath":"/quantity_ok",
     "taken":"Append this item",
     "notTaken":"Reject this item"
-  }
+  },
+  "lineNotes": [
+    {"line":19,"text":"`2 > 0` is True, so `quantity_ok` is True."},
+    {"line":20,"text":"`item-1` joins `accepted`; the list now has 1 entry."}
+  ],
+  "insights": [
+    {"kind":"gotcha","title":"Copy, not reference","text":"`{**item}` builds a new dict, so the caller's input is not modified."}
+  ],
+  "callStack": ["handle_request()", "prepare(items)", "for loop · item 1"]
 }
 ```
 
-Required fields are `id,title,chapter,explanation,node,lane,causes,phase,sources,evidence,visuals`. Optional: `iteration,attempt,watch,decision`. Consecutive steps sharing a `chapter` form one segment of the timeline, so keep chapter names short and group steps contiguously. Causes reference earlier steps **in the same scenario**, including cross-lane dependencies. First steps normally have `causes: []`. A graph node can occur repeatedly. Phase is `before`, `after`, `return`, or `inferred`.
+Required fields are `id,title,chapter,explanation,node,lane,causes,phase,sources,evidence,visuals`. Optional: `iteration,attempt,watch,decision,lineNotes,insights,callStack`.
+
+- `lineNotes`: `{line, text, file?}` (file defaults to the first source). Rendered as numbered gutter markers linked to a "Line by line" list. The line must be inside a displayed snippet.
+- `insights`: `{kind, text, title?}`, where kind is `why`, `concept`, `gotcha`, `performance`, `edge-case` or `design`. Rendered as "Under the hood" cards.
+- `callStack`: outermost-first frame labels shown above the code.
+- In `explanation`, notes, insights, captions, summaries and quiz text, backticks mark `code`.
+
+See [teaching-depth.md](teaching-depth.md) for how much of each to write. Consecutive steps sharing a `chapter` form one segment of the timeline, so keep chapter names short and group steps contiguously. Causes reference earlier steps **in the same scenario**, including cross-lane dependencies. First steps normally have `causes: []`. A graph node can occur repeatedly. Phase is `before`, `after`, `return`, or `inferred`.
 
 Source: required `path,start,end,focus` (one-based inclusive); optional `label` and `sha256` (authoring-time full-file hash). Focus must lie within range. Multiple references become file tabs. Phase and prose explain how focused source relates to the snapshot.
 
@@ -82,6 +100,7 @@ All views: `type,title,path`, optional `caption` for units, identity, or provena
 | `text` | Scalar | Preserved whitespace; raw tokens, normalized string, or scalar result. |
 | `tree` | Any JSON | Inspectable nesting when structure matters. |
 | `bars` | Object mapping labels to finite numbers | Horizontal bars scaled to the largest magnitude; negatives shown distinctly. Use for comparing magnitudes (per-item totals, scores, sizes). |
+| `board` | Object, plus `groups: [{title, path}]` whose paths (relative to `path`) select arrays | Kanban columns. Entities are matched across columns by `id`/`name`/`label`, or by a bare scalar value, so an id in `pending` and the record `{id: …}` in `accepted` are the same entity. A move shows "from <column>", a new entity is marked new, and one that left every column remains as a ghost. Prefer it whenever items flow between collections. |
 
 Use multiple visuals when state contains a queue, current item, and accumulated results. Prose supplies domain meaning; the renderer never guesses money, duration, accuracy, or count.
 
@@ -99,4 +118,6 @@ uv run <skill>/scripts/build_walkthrough.py /tmp/walkthrough-example/walkthrough
 
 Builder checks: `uv run --with Pygments --with jsonschema python <skill>/tests/test_builder.py`.
 
-UI checks: use an available browser or `node <skill>/tests/browser_smoke.mjs /absolute/output/index.html` with Playwright resolvable. The runner checks scenarios, steps, tabs, seeking, timeline and minimap jumps, theme toggle, modal, reverse restoration, keyboard controls, and mobile overflow, and writes `desktop.png`, `desktop-dark.png`, and `mobile.png`. Visually review its screenshots as well.
+Depth/quiz lint: the builder prints warnings for steps without `lineNotes`, steps with more than three visuals, chapters without insights, and a missing, small or one-format quiz, or one that leaves a chapter untested. Add `--strict` to make them errors.
+
+UI checks: use an available browser or `node <skill>/tests/browser_smoke.mjs /absolute/output/index.html` with Playwright resolvable. The runner checks the Overview landing page, every step via the outline, line notes, file tabs, reverse restoration, timeline and flow-strip seeking, map jumps, concept popovers, theme toggle, playback, deep links, keyboard section switching, the full quiz (grading, results, review links, retry missed), the mobile drawer, and overflow in every section. It writes `overview.png`, `desktop.png`, `desktop-dark.png`, `quiz-question.png`, `quiz-results.png` and `mobile.png`. Review the screenshots as well.

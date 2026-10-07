@@ -10,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_walkthrough import build, prepare, pointer
+from build_walkthrough import build, lint, prepare, pointer
 from capture import record
 
 
@@ -42,6 +42,7 @@ class BuilderTests(unittest.TestCase):
         self.assertEqual(prepared["scenarios"][0]["steps"][-1]["state"]["total"],285)
         self.assertEqual(prepared["scenarios"][1]["steps"][-1]["state"]["total"],240)
         self.assertEqual(prepared["scenarios"][0]["steps"][0]["state"]["accepted"],[])
+        self.assertEqual(lint(prepared),[])
 
     def test_stale_source_rejected(self):
         with (self.repo / "workflow.py").open("a") as f:
@@ -94,18 +95,72 @@ class BuilderTests(unittest.TestCase):
             prepare(self.spec,self.repo,self.output)
 
     def test_bars_require_numbers_and_watch_line_must_be_displayed(self):
-        step=self.spec["scenarios"][0]["steps"][1]
+        step=self.spec["scenarios"][0]["steps"][2]
         self.assertEqual([v["type"] for v in step["visuals"]][-1],"bars")
-        self.assertEqual(step["watch"][0]["line"],15)
+        self.assertEqual(step["watch"][1]["line"],17)
         prepare(deepcopy(self.spec),self.repo,self.output)
         spec=deepcopy(self.spec)
-        spec["scenarios"][0]["steps"][1]["watch"][0]["line"]=2
+        spec["scenarios"][0]["steps"][2]["watch"][1]["line"]=2
         with self.assertRaisesRegex(ValueError,"Watch line outside"):
             prepare(spec,self.repo,self.output)
         spec=deepcopy(self.spec)
-        spec["scenarios"][0]["steps"][1]["visuals"][-1]["path"]="/current"
+        spec["scenarios"][0]["steps"][2]["visuals"][-1]["path"]="/current"
         with self.assertRaisesRegex(ValueError,"Bars require"):
             prepare(spec,self.repo,self.output)
+
+    def test_line_notes_board_groups_and_chapters_are_checked(self):
+        spec=deepcopy(self.spec)
+        spec["scenarios"][0]["steps"][0]["lineNotes"][0]["line"]=2
+        with self.assertRaisesRegex(ValueError,"Line note outside"):
+            prepare(spec,self.repo,self.output)
+        spec=deepcopy(self.spec)
+        spec["scenarios"][0]["steps"][0]["visuals"][0]["groups"][0]["path"]="/total"
+        with self.assertRaisesRegex(ValueError,"Board group must be an array"):
+            prepare(spec,self.repo,self.output)
+        spec=deepcopy(self.spec)
+        spec["chapters"][0]["title"]="Nonexistent chapter"
+        with self.assertRaisesRegex(ValueError,"Chapter metadata"):
+            prepare(spec,self.repo,self.output)
+
+    def test_quiz_answers_bind_to_checkpoints_and_code(self):
+        prepared=prepare(deepcopy(self.spec),self.repo,self.output)
+        questions={q["id"]:q for q in prepared["quiz"]["questions"]}
+        blank=questions["mixed-final"]["blanks"][0]
+        self.assertEqual(blank["answers"],["240"])
+        self.assertEqual(blank["verified"],"mixed/done/total")
+        code=questions["complete-loop"]
+        hidden=[line for line in code["source"]["lines"] if "segments" in line]
+        self.assertEqual(len(hidden),3)
+        self.assertTrue(all("text" not in line and "html" not in line for line in hidden))
+        self.assertEqual([b["answers"][0] for b in code["blanks"]],["pop(0)","> 0","+="])
+        self.assertEqual(prepared["build"]["questionCount"],10)
+
+    def test_invalid_quiz_questions_are_rejected(self):
+        def broken(change, message):
+            spec=deepcopy(self.spec)
+            change({q["id"]:q for q in spec["quiz"]["questions"]})
+            with self.assertRaisesRegex(ValueError,message):
+                prepare(spec,self.repo,self.output)
+        broken(lambda q: q["total-after-tea"].update(answer=9),"answer index outside")
+        broken(lambda q: q["pop-front"].update(prompt="No marker here"),"0 ___ markers")
+        broken(lambda q: q["complete-loop"]["blanks"][0].update(text="popleft()"),"not found")
+        broken(lambda q: q["why-bread"]["refs"].append({"scenario":"valid","step":"missing"}),"unknown quiz reference")
+        broken(lambda q: q["mixed-final"]["blanks"][0]["from"].update(path="/accepted"),"scalar")
+        broken(lambda q: q["item-order"].update(choices=["a","b"]),"only apply to mcq")
+
+    def test_lint_flags_shallow_walkthroughs(self):
+        spec=deepcopy(self.spec)
+        del spec["quiz"]
+        for scenario in spec["scenarios"]:
+            for step in scenario["steps"]:
+                step.pop("lineNotes"); step.pop("insights")
+        warnings=lint(prepare(deepcopy(spec),self.repo,self.output))
+        self.assertTrue(any("lineNotes" in w for w in warnings))
+        self.assertTrue(any("No quiz" in w for w in warnings))
+        spec_path=self.output / "shallow.json"
+        spec_path.write_text(json.dumps(spec))
+        with self.assertRaisesRegex(ValueError,"--strict"):
+            build(spec_path,self.repo,self.output / "shallow.html",strict=True)
 
     def test_capture_is_immutable_and_does_not_coerce_objects(self):
         path=self.output / "capture.jsonl"

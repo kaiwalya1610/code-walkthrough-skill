@@ -51,8 +51,8 @@ Use per-worker files for multiple threads/processes; append helpers do not coord
 
 ## Teaching steps
 
-A step answers “what changed, where, and why?” rather than covering an arbitrary number of lines. Include setup when it changes behavior. Caller/callee transitions can use source tabs. Group phases into chapters and make scenarios for meaningful branches. Don't create a slide for each import/getter.
+A step answers “what changed, where, and why?” rather than covering an arbitrary number of lines. [teaching-depth.md](teaching-depth.md) sets the depth contract: line notes for focused lines, insights per chapter, and decisions split from their effects. Include setup when it changes behavior. Caller/callee transitions can use source tabs. Group phases into chapters and make scenarios for meaningful branches. Don't create a slide for each import/getter.
 
-Make the domain recognizable: product cards for a cart, waiting jobs for a scheduler, added columns for a join, accepted/rejected fields for a parser. Use built-in views first; add a specific renderer to copied assets when they obscure the concept. Keep visuals bound to snapshots with accessible text/table equivalents.
+Make the domain recognizable: a board of pending → running → done jobs for a scheduler, product cards for a cart, added columns for a join, accepted/rejected fields for a parser. Use built-in views first and show each fact once; add a specific renderer to copied assets when they obscure the concept. Keep visuals bound to snapshots with accessible text/table equivalents.
 
 Controls never execute application code. Play/seek/reverse navigate immutable snapshots. Changing a fixture requires rerunning the harness and rebuilding; editing display data must not imply a new verified result.
