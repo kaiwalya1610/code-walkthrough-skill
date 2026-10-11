@@ -38,6 +38,10 @@ class BuilderTests(unittest.TestCase):
         self.assertIn('.code-lines .k {',document)
         self.assertIn(':root[data-theme=dark] .code-lines .k {',document)
         self.assertNotIn("['.code-lines",document)
+        # Vendored libraries are inlined, one script element each; no other script end tags appear.
+        self.assertIn("mermaid",document)
+        self.assertEqual(document.count("</script"),4)
+        self.assertNotIn("<!--",document)
         prepared = prepare(deepcopy(self.spec),self.repo,self.output)
         self.assertEqual(prepared["scenarios"][0]["steps"][-1]["state"]["total"],285)
         self.assertEqual(prepared["scenarios"][1]["steps"][-1]["state"]["total"],240)
@@ -120,6 +124,21 @@ class BuilderTests(unittest.TestCase):
         spec=deepcopy(self.spec)
         spec["chapters"][0]["title"]="Nonexistent chapter"
         with self.assertRaisesRegex(ValueError,"Chapter metadata"):
+            prepare(spec,self.repo,self.output)
+
+    def test_mermaid_visual_placeholders_are_checked(self):
+        done=lambda spec: spec["scenarios"][0]["steps"][-1]
+        diagram=next(v for v in done(self.spec)["visuals"] if v["type"]=="mermaid")
+        self.assertIn("{{/total}}",diagram["code"])
+        prepare(deepcopy(self.spec),self.repo,self.output)
+        for code,message in [("flowchart LR\n a[\"{{/missing}}\"]","missing JSON pointer"),("flowchart LR\n a[\"{{/counts}}\"]","scalar")]:
+            spec=deepcopy(self.spec)
+            next(v for v in done(spec)["visuals"] if v["type"]=="mermaid")["code"]=code
+            with self.assertRaisesRegex(ValueError,message):
+                prepare(spec,self.repo,self.output)
+        spec=deepcopy(self.spec)
+        done(spec)["visuals"][0]["code"]="flowchart LR\n a --> b"
+        with self.assertRaisesRegex(ValueError,"only applies to, mermaid"):
             prepare(spec,self.repo,self.output)
 
     def test_quiz_answers_bind_to_checkpoints_and_code(self):

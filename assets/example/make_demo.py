@@ -31,7 +31,9 @@ CHAPTERS = [
     {"title": "Set up the batch", "summary": "prepare_orders turns the input into three working collections and a zero total before touching any item.",
      "goals": ["Why pending stores ids rather than whole orders", "What the first checkpoint captures"]},
     {"title": "Process items", "summary": "Each loop iteration removes one id from the front of pending, decides whether its quantity is valid, then either accumulates a subtotal or records a rejection.",
-     "goals": ["How the validity check routes an item", "How the running total grows", "Why accepted entries are copies"]},
+     "goals": ["How the validity check routes an item", "How the running total grows", "Why accepted entries are copies"],
+     "diagram": {"title": "Life of one order id", "caption": "Every id makes exactly one trip; the `quantity > 0` check picks the final state.",
+                 "code": "stateDiagram-v2\n  direction LR\n  [*] --> Pending: read batch\n  Pending --> Inspecting: pending.pop(0)\n  Inspecting --> Accepted: quantity #gt; 0\n  Inspecting --> Rejected: otherwise\n  Accepted --> [*]: subtotal added\n  Rejected --> [*]: reason recorded"}},
     {"title": "Return the result", "summary": "After the loop, the function emits a final checkpoint and returns the lists it built.",
      "goals": ["What the caller receives", "How to read the final totals"]},
 ]
@@ -128,6 +130,20 @@ def narrate(event, state, orders):
         "iteration": n}
 
 
+DIAGRAMS = [
+    {"title": "Who calls whom", "caption": "The harness passes `emit`, so checkpoints are recorded without `prepare_orders` knowing about files.",
+     "code": "sequenceDiagram\n  participant H as make_demo harness\n  participant P as prepare_orders\n  participant R as capture.record\n"
+             "  H->>P: orders, emit\n  P->>H: emit(#quot;start#quot;, state)\n  H->>R: write checkpoint\n"
+             "  loop each order\n    P->>H: emit(#quot;check-n#quot;)\n    H->>R: write checkpoint\n    P->>H: emit(#quot;item-n#quot;)\n    H->>R: write checkpoint\n  end\n"
+             "  P->>H: emit(#quot;done#quot;)\n  P-->>H: accepted, rejected, total"},
+    {"title": "Data shapes", "caption": "Accepted entries copy the order and add `subtotal`; rejections keep only the id and a reason.",
+     "code": "erDiagram\n  ORDER {\n    string id\n    int quantity\n    int unit_price\n  }\n"
+             "  ACCEPTED_ENTRY {\n    string id\n    int quantity\n    int unit_price\n    int subtotal\n  }\n"
+             "  REJECTION {\n    string id\n    string reason\n  }\n  RESULT {\n    int total\n  }\n"
+             "  ORDER ||--o| ACCEPTED_ENTRY : \"copied when valid\"\n  ORDER ||--o| REJECTION : \"recorded when invalid\"\n"
+             "  RESULT ||--o{ ACCEPTED_ENTRY : accepted\n  RESULT ||--o{ REJECTION : rejected"},
+]
+
 QUIZ = {
     "title": "Check your understanding",
     "intro": "Ten questions on the batch you just traced. Trace questions use captured values; apply questions ask what the source implies for a new input.",
@@ -207,13 +223,13 @@ def make_demo(output):
                          "Accepted entries are new dicts; the caller's input is not mutated."],
             "limitations": ["Single synchronous lane; no external service, tax, shipping or currency conversion.",
                             "Missing or non-numeric quantities are not exercised."]},
-        "chapters": CHAPTERS, "concepts": CONCEPTS,
+        "chapters": CHAPTERS, "concepts": CONCEPTS, "diagrams": DIAGRAMS,
         "graph": {"nodes": [
-            {"id": "input", "label": "Read batch", "description": "Collect ids and reset totals", "x": 20, "y": 20},
-            {"id": "validate", "label": "Check quantity", "description": "Pop the next id and test quantity > 0", "x": 240, "y": 20},
-            {"id": "accumulate", "label": "Accept item", "description": "Compute subtotal and add to total", "x": 460, "y": 20},
-            {"id": "reject", "label": "Reject item", "description": "Record the id with a reason", "x": 460, "y": 130},
-            {"id": "output", "label": "Return result", "description": "Deliver accumulated values", "x": 240, "y": 240}],
+            {"id": "input", "label": "Read batch", "description": "Collect ids and reset totals", "shape": "entry"},
+            {"id": "validate", "label": "Check quantity", "description": "Pop the next id and test quantity > 0", "shape": "decision", "group": "for each order"},
+            {"id": "accumulate", "label": "Accept item", "description": "Compute subtotal and add to total", "group": "for each order"},
+            {"id": "reject", "label": "Reject item", "description": "Record the id with a reason", "group": "for each order"},
+            {"id": "output", "label": "Return result", "description": "Deliver accumulated values", "shape": "output"}],
             "edges": [{"from": "input", "to": "validate", "label": "each item"},
                       {"from": "validate", "to": "accumulate", "label": "valid"},
                       {"from": "validate", "to": "reject", "label": "invalid"},
@@ -234,6 +250,7 @@ def make_demo(output):
             state["inspecting"] = [state["current"]] if event.startswith("check-") else []
             state["metrics"] = {"Running total (₹)": state["total"]}
             state["subtotals"] = {item["id"]: item["subtotal"] for item in state["accepted"]}
+            state["counts"] = {"accepted": len(state["accepted"]), "rejected": len(state["rejected"])}
             record(trace, event, state, repo=ROOT, sources=["workflow.py", "make_demo.py"])
             story = narrate(event, state, orders)
             visuals = [{"type": "board", "title": "Where each order is", "path": "",
@@ -241,6 +258,11 @@ def make_demo(output):
                                    {"title": "Accepted", "path": "/accepted"}, {"title": "Rejected", "path": "/rejected"}],
                         "caption": "Pending holds ids; accepted entries are copies with a subtotal."},
                        {"type": "metrics", "title": "Running total", "path": "/metrics"}]
+            if event == "done":
+                visuals[1] = {"type": "mermaid", "title": "What the caller receives", "path": "",
+                              "code": "flowchart LR\n  r([\"prepare_orders returns\"]) --> a[\"accepted: {{/counts/accepted}} item(s)\"]\n"
+                                      "  r --> j[\"rejected: {{/counts/rejected}} item(s)\"]\n  r --> t[\"total: ₹{{/total}}\"]",
+                              "caption": "Values are filled in from this checkpoint."}
             if state["accepted"] and not event.startswith("check-"):
                 visuals.append({"type": "bars", "title": "Subtotal by accepted item (₹)", "path": "/subtotals"})
             step = {"id": event, "title": story["title"], "chapter": story["chapter"], "explanation": story["explanation"],

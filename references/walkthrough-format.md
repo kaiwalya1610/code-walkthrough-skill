@@ -9,9 +9,10 @@ The authoritative contract is [../assets/walkthrough.schema.json](../assets/walk
 | `version` | Exactly `1`. |
 | `title`, `summary`, `repoLabel`, `scope` | Reader-facing descriptions of exact scope. |
 | `analysis` | `inventoryCount`, `coverage`, `entrypoints`, `findings`, `limitations`. Coverage entries: `path`, `status`, `reason`. Findings/limitations: string arrays. |
-| `graph` | `nodes` and `edges`. Nodes: `id`, short `label`, `description`, integer `x`,`y` pixel coordinates. Edges: `from`,`to`,`label`. Use about 220 px horizontal and 110 px vertical spacing; boxes are 160×50. Cycles and two-way edges are allowed. The full graph is on the Overview; each step shows a compact "you are here" strip of the nodes the scenario visits. Prefer roughly ≤16 nodes, ≤4 per row, and labels of ≤15 characters; split larger systems into subsystem-level nodes. |
+| `graph` | `nodes`, `edges` and optional `direction` (`LR` default, or `TB`). Nodes: `id`, short `label`, `description`, optional `shape` (`process`, `entry`, `decision`, `store`, `external`, `queue`, `output`) and `group` (nodes sharing a group are drawn in one subgraph). Edges: `from`,`to`,`label`. Mermaid lays the graph out; legacy `x`/`y` are accepted and ignored. Cycles and two-way edges are allowed. The full graph is a pan-and-zoom flowchart on the Overview; each step shows a compact "you are here" strip of the nodes the scenario visits. Prefer roughly ≤16 nodes and labels of ≤15 characters; split larger systems into subsystem-level nodes. |
+| `diagrams` | Optional. `[{title?, code, caption?}]` Mermaid diagrams shown on the Overview (sequence, class, ER, state, …). See [diagrams.md](diagrams.md). |
 | `scenarios` | Array of `{id,title,summary,input,outcome,steps}`. Input is synthetic JSON. Each scenario starts independently. |
-| `chapters` | Optional. `{title, summary, goals?}` per step chapter. Shown as an intro card when a chapter begins and as the Overview's learning path. Titles must match step `chapter` values. |
+| `chapters` | Optional. `{title, summary, goals?, diagram?}` per step chapter. `diagram` is `{code, title?, caption?}` in Mermaid. Shown as an intro card when a chapter begins and as the Overview's learning path. Titles must match step `chapter` values. |
 | `concepts` | Optional. `{term, definition}` glossary. The first mention of a term in each piece of prose becomes a definition popover. |
 | `quiz` | Optional in the schema, expected by the skill. `{title?, intro?, passScore?, questions}`. See [quiz-design.md](quiz-design.md). |
 
@@ -100,6 +101,7 @@ All views: `type,title,path`, optional `caption` for units, identity, or provena
 | `text` | Scalar | Preserved whitespace; raw tokens, normalized string, or scalar result. |
 | `tree` | Any JSON | Inspectable nesting when structure matters. |
 | `bars` | Object mapping labels to finite numbers | Horizontal bars scaled to the largest magnitude; negatives shown distinctly. Use for comparing magnitudes (per-item totals, scores, sizes). |
+| `mermaid` | Any JSON, plus `code` (Mermaid text) | A diagram whose labels carry this step's values: `{{/pointer}}` in `code` becomes the scalar at that pointer, relative to `path`. Each pointer must exist and select a scalar. See [diagrams.md](diagrams.md). |
 | `board` | Object, plus `groups: [{title, path}]` whose paths (relative to `path`) select arrays | Kanban columns. Entities are matched across columns by `id`/`name`/`label`, or by a bare scalar value, so an id in `pending` and the record `{id: …}` in `accepted` are the same entity. A move shows "from <column>", a new entity is marked new, and one that left every column remains as a ghost. Prefer it whenever items flow between collections. |
 
 Use multiple visuals when state contains a queue, current item, and accumulated results. Prose supplies domain meaning; the renderer never guesses money, duration, accuracy, or count.
@@ -115,6 +117,8 @@ python3 <skill>/assets/example/make_demo.py --out /tmp/walkthrough-example
 uv run <skill>/scripts/build_walkthrough.py /tmp/walkthrough-example/walkthrough.json \
   --repo <skill>/assets/example --out /tmp/walkthrough-example/index.html
 ```
+
+Diagrams: the map, branches and run lanes are generated Mermaid diagrams; see [diagrams.md](diagrams.md) for authored ones. The builder checks pointers and structure but cannot parse Mermaid, so a syntax error appears on the page and fails the browser smoke test.
 
 Builder checks: `uv run --with Pygments --with jsonschema python <skill>/tests/test_builder.py`.
 

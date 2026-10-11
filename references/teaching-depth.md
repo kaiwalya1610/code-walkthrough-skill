@@ -6,7 +6,7 @@ A walkthrough is deep when a reader who never opened the repository can answer t
 
 | Layer | Field | Purpose |
 |---|---|---|
-| Orientation | `summary`, `scope`, `graph`, scenario cards | What the system is and which runtime paths the reader will follow. |
+| Orientation | `summary`, `scope`, `graph`, `diagrams`, scenario cards | What the system is and which runtime paths the reader will follow. |
 | Learning path | top-level `chapters` (`title`, `summary`, `goals`) | One intro card per chapter: what this phase does and what the reader should come away knowing. |
 | Step story | `title`, `explanation` | One concrete operation, told with the captured values: "tea leaves `pending`; 2 > 0 → True". |
 | Line by line | `lineNotes` | A numbered note for **every focused line**, linked to a marker in the code gutter. Say what the line does *in this run* with real values, not what it does in general. |
@@ -54,6 +54,7 @@ The visual panel should make the change obvious, not repeat it in several shapes
 - Prefer one `board` when entities move between collections (pending → in progress → done/failed). It replaces a queue, a table and a records list showing the same items.
 - Use `metrics` for the few numbers that matter, `bars` only for comparing magnitudes across several items, `table` for comparing fields across rows, `tree` for nested structure, and `text` for raw strings.
 - Never pair a count metric with a board or list that already shows the same count.
+- Reach for a Mermaid diagram when the step's point is structural: who calls whom (`sequenceDiagram`), which state an entity is in (`stateDiagram-v2`), or how control branches (`flowchart`). Put system-wide diagrams in `diagrams` and a chapter's framing picture in `chapters[].diagram`, not on every step. See [diagrams.md](diagrams.md).
 - Add a `caption` for units, identity or provenance. Let `explanation` and `lineNotes` carry the narrative.
 
 ## Self-check before building

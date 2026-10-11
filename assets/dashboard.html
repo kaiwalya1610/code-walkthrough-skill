@@ -72,7 +72,7 @@ __TOKENS__
           <div class="more-panels">
             <details id="changes-box" class="fold"><summary>What changed <span id="change-count" class="count"></span></summary><div id="changes"></div></details>
             <details id="input-box" class="fold"><summary id="input-summary"></summary><div id="input"></div></details>
-            <details id="lane-details" class="fold"><summary>Run lanes &amp; causal links</summary><p class="muted">Replay order follows this recording. Separate lanes can overlap; curves show declared causal links.</p><div id="lane-chart" class="lane-chart"></div></details>
+            <details id="lane-details" class="fold"><summary>Run lanes &amp; causal links</summary><p class="muted">A sequence diagram of this recording: one column per lane, an arrow for each declared causal link between lanes, and a note for work inside a lane. Separate lanes can overlap in time; the highlighted band is the current step.</p><div id="lane-chart" class="lane-chart"></div></details>
           </div>
           <div id="causes"></div>
         </section>
@@ -102,6 +102,7 @@ __TOKENS__
 
   <div id="term-pop" class="term-pop" role="tooltip" hidden></div>
   <script type="application/json" id="walkthrough-data">__DATA__</script>
+  <script>__VENDOR__</script>
   <script>__SCRIPT__</script>
 </body>
 </html>

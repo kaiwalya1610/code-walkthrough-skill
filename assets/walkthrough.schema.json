@@ -106,6 +106,12 @@
             "additionalProperties": false
           },
           "minItems": 0
+        },
+        "direction": {
+          "enum": [
+            "LR",
+            "TB"
+          ]
         }
       },
       "required": [
@@ -113,6 +119,13 @@
         "edges"
       ],
       "additionalProperties": false
+    },
+    "diagrams": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagram"
+      },
+      "minItems": 1
     },
     "scenarios": {
       "type": "array",
@@ -203,7 +216,8 @@
             "text",
             "tree",
             "bars",
-            "board"
+            "board",
+            "mermaid"
           ]
         },
         "title": {
@@ -244,6 +258,10 @@
             "additionalProperties": false
           },
           "minItems": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -631,14 +649,27 @@
         "y": {
           "type": "integer",
           "minimum": 0
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shape": {
+          "enum": [
+            "process",
+            "entry",
+            "decision",
+            "store",
+            "external",
+            "queue",
+            "output"
+          ]
         }
       },
       "required": [
         "id",
         "label",
-        "description",
-        "x",
-        "y"
+        "description"
       ],
       "additionalProperties": false
     },
@@ -687,6 +718,9 @@
             "minLength": 1
           },
           "minItems": 1
+        },
+        "diagram": {
+          "$ref": "#/$defs/diagram"
         }
       },
       "required": [
@@ -997,6 +1031,26 @@
       },
       "required": [
         "questions"
+      ],
+      "additionalProperties": false
+    },
+    "diagram": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "caption": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "code"
       ],
       "additionalProperties": false
     }

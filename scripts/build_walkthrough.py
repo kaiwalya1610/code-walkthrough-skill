@@ -25,6 +25,9 @@ from pygments.util import ClassNotFound
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 # "friendly" token rules stay active in dark mode; these are the only light properties github-dark leaves in place.
 LIGHT_ONLY_RESET = "\nSCOPE .cs { background-color: transparent }\nSCOPE .err { border: 0 }"
+# {{/pointer}} in a mermaid visual is replaced in the browser by that scalar from the visual's value.
+PLACEHOLDER = re.compile(r"\{\{\s*(/[^}\s]*)\s*\}\}")
+VENDOR = ["mermaid.min.js", "svg-pan-zoom.min.js"]
 
 
 def inside(root, name):
@@ -310,6 +313,11 @@ def prepare(spec, repo, directory):
                             raise ValueError(f"Board group must be an array: {step['id']} {group['path']}")
                 elif visual.get("groups"):
                     raise ValueError(f"groups only apply to board visuals: {step['id']}")
+                if (kind == "mermaid") != ("code" in visual):
+                    raise ValueError(f"code is required for, and only applies to, mermaid visuals: {step['id']}")
+                for path in PLACEHOLDER.findall(visual.get("code", "")):
+                    if isinstance(pointer(value, path, step["id"]), (dict, list)):
+                        raise ValueError(f"Mermaid placeholder must select a scalar: {step['id']} {{{{{path}}}}}")
                 if kind == "bars" and (not isinstance(value, dict) or any(
                         isinstance(v, bool) or not isinstance(v, (int, float)) for v in value.values())):
                     raise ValueError(f"Bars require a label/number object: {step['id']} {visual['path']}")
@@ -347,17 +355,21 @@ def build(spec_path, repo, output, strict=False):
     if strict and warnings:
         raise ValueError(f"{len(warnings)} depth/quiz warnings with --strict")
     serialized = json.dumps(spec, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
-    document = (ASSETS / "dashboard.html").read_text(encoding="utf-8")
-    document = document.replace("__TITLE__", html.escape(spec["title"]))
-    document = document.replace("__STYLE__", (ASSETS / "dashboard.css").read_text(encoding="utf-8"))
     # Token colours only; the page's theme variables own backgrounds. Dark is screen-only so print stays light.
     rules = lambda style, scope: "\n".join(HtmlFormatter(style=style).get_token_style_defs(scope))
     dark = lambda scope: rules("github-dark", scope) + LIGHT_ONLY_RESET.replace("SCOPE", scope)
     tokens = (f"{rules('friendly', '.code-lines')}\n@media screen{{\n{dark(':root[data-theme=dark] .code-lines')}\n}}\n"
               f"@media screen and (prefers-color-scheme:dark){{\n{dark(':root:not([data-theme=light]) .code-lines')}\n}}")
-    document = document.replace("__TOKENS__", tokens)
-    document = document.replace("__SCRIPT__", (ASSETS / "dashboard.js").read_text(encoding="utf-8"))
-    document = document.replace("__DATA__", serialized)
+    # Vendored bundles are inlined so the page stays offline, one script element each so mermaid's "use strict"
+    # does not leak into the next library. Neither sequence below may end or re-open the element.
+    safe = lambda code: code.replace("</script", "<\\/script").replace("<!--", "\\x3C!--")
+    vendor = "</script>\n  <script>".join(safe((ASSETS / "vendor" / name).read_text(encoding="utf-8")) for name in VENDOR)
+    parts = {"TITLE": html.escape(spec["title"]), "STYLE": (ASSETS / "dashboard.css").read_text(encoding="utf-8"),
+             "TOKENS": tokens, "VENDOR": vendor,
+             "SCRIPT": (ASSETS / "dashboard.js").read_text(encoding="utf-8"), "DATA": serialized}
+    # One pass, so a placeholder-like token inside an inserted part is never substituted again.
+    template = (ASSETS / "dashboard.html").read_text(encoding="utf-8")
+    document = re.sub(r"__(TITLE|STYLE|TOKENS|VENDOR|SCRIPT|DATA)__", lambda m: parts[m[1]], template)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(document, encoding="utf-8")
     steps = sum(len(s["steps"]) for s in spec["scenarios"])

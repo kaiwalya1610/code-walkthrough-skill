@@ -22,7 +22,12 @@ try {
   await page.goto(pathToFileURL(file).href);
   const position = () => page.locator('#position').innerText();
   // Bar widths animate from the previous value; compare the rendered snapshot, not the animation frame.
-  const snapshot = async () => (await page.locator('#visuals').innerHTML()).replace(/ style="width:[^"]*"/g, '');
+  const snapshot = async () => { await diagramsDrawn(); return (await page.locator('#visuals').innerHTML()).replace(/ style="width:[^"]*"/g, ''); };
+  // Mermaid draws asynchronously; wait until every placeholder holds an SVG or an error, then require no errors.
+  const diagramsDrawn = async () => {
+    await page.waitForFunction(() => !document.querySelector('.diagram-wait'));
+    assert.equal(await page.locator('.diagram-error').count(), 0, 'Every Mermaid diagram must render');
+  };
 
   // Landing page orients first, then starts the walkthrough.
   assert.equal(await page.locator('#view-overview').isVisible(), true, 'Overview is the landing view');
@@ -47,7 +52,11 @@ try {
         await page.locator('#line-notes li').first().hover();
         assert.ok(await page.locator('.note-marker.linked').count() + (steps[i].lineNotes[0].file ? 1 : 0) >= 1, 'Line note links to its marker');
       }
-      if (steps[i].decision) assert.equal(await page.locator('.decision').count(), 1);
+      if (steps[i].decision) {
+        assert.equal(await page.locator('.decision').count(), 1);
+        await diagramsDrawn();
+        assert.equal(await page.locator('.decision .diagram svg').count(), 1, 'Branch is drawn as a flowchart');
+      }
       if (await page.locator('#file-tabs button').count() > 1) {
         await page.locator('#file-tabs button').nth(1).click();
         assert.equal(await page.locator('#file-tabs button').nth(1).getAttribute('aria-selected'), 'true');
@@ -120,6 +129,21 @@ try {
   await page.locator('#story').click({position: {x: 4, y: 4}});
   await page.keyboard.press('1');
   assert.equal(await page.locator('#view-overview').isVisible(), true);
+  await diagramsDrawn();
+  assert.equal(await page.locator('#ov-map .diagram svg').count(), 1, 'Codebase map is a Mermaid flowchart');
+  assert.equal(await page.locator('.diagram-list .diagram svg').count(), data.diagrams?.length || 0, 'Every authored diagram renders');
+  // Theme changes redraw diagrams with the other palette.
+  const mapBefore = await page.locator('#ov-map .diagram').innerHTML();
+  await page.keyboard.press('t');
+  await diagramsDrawn();
+  assert.notEqual(await page.locator('#ov-map .diagram').innerHTML(), mapBefore, 'Theme toggle redraws the map');
+  await page.keyboard.press('t');
+  await diagramsDrawn();
+  // Pan/zoom controls and dragging must work (the runtime error check below catches failures).
+  await page.locator('#ov-map #svg-pan-zoom-zoom-in').click();
+  await page.locator('#ov-map #svg-pan-zoom-reset-pan-zoom').click();
+  const mapBox = await page.locator('#ov-map .diagram svg').boundingBox();
+  await page.mouse.move(mapBox.x + 20, mapBox.y + 20); await page.mouse.down(); await page.mouse.move(mapBox.x + 80, mapBox.y + 60); await page.mouse.up();
   await page.locator('#view-overview .graph-node[data-step]').first().click();
   assert.equal(await page.locator('#view-walk').isVisible(), true, 'Map node opens the walkthrough');
 
@@ -195,6 +219,14 @@ try {
     await page.keyboard.press('Home');
     await page.keyboard.press('ArrowRight');
     assert.match(await page.locator('#visuals').innerText(), /New nested value[\s\S]*7/);
+    // A second lane turns the run-lanes panel on; it is drawn as a sequence diagram.
+    const laned = structuredClone(data);
+    laned.scenarios[0].steps.forEach((s, i) => { if (i % 2) s.lane = 'Second lane'; });
+    await page.setContent(html.replace(payloadMatch[0], `${payloadMatch[1]}${JSON.stringify(laned).replace(/</g, '\\u003c')}${payloadMatch[3]}`), {waitUntil: 'load'});
+    await page.click('#tab-walk');
+    await page.locator('#lane-details summary').click();
+    await diagramsDrawn();
+    assert.equal(await page.locator('#lane-chart .diagram svg').count(), 1, 'Run lanes render as a sequence diagram');
   }
   assert.deepEqual(errors, [], 'Browser runtime errors');
   assert.deepEqual(requests, [], 'Offline dashboard must make no network requests');

@@ -1,10 +1,10 @@
 # Code Walkthrough Skill
 
-Create an interactive, step-by-step dry run of a codebase or feature, then check your understanding with a quiz. The dashboard puts highlighted source code beside the changing values from a synthetic example and explains every focused line with the values this run produced. The finished HTML works offline.
+Create an interactive, step-by-step dry run of a codebase or feature, then check your understanding with a quiz. The dashboard puts highlighted source code beside the changing values from a synthetic example and explains every focused line with the values this run produced. Diagrams are drawn with [Mermaid](https://mermaid.js.org): the codebase map, every branch, a sequence diagram of concurrent lanes, and any sequence, state, class, ER or other diagrams the author adds. The finished HTML works offline, because the Mermaid library is inlined into it.
 
 The page has three sections:
 
-- **Overview**: a summary, scenario cards with progress, a codebase map, a chapter-by-chapter learning path, key concepts, and coverage and limits.
+- **Overview**: a summary, scenario cards with progress, a pan-and-zoom codebase map, system diagrams, a chapter-by-chapter learning path, key concepts, and coverage and limits.
 - **Walkthrough**: a chapter/step outline, source with numbered line notes, inline values and a call stack, and a dry-run panel. The panel covers the step story, the branch taken, a line-by-line explanation, a board showing entities moving between collections, and "under the hood" insights (why, gotchas, performance, edge cases).
 - **Quiz**: multiple-choice, fill-in-the-blank (answers can be bound to captured checkpoint values), complete-the-real-code, and put-in-order questions. It covers recall, trace, reason and apply levels, explains every answer, and links back to the steps that teach it.
 
@@ -51,7 +51,7 @@ uv run "$SKILL_DIR/scripts/build_walkthrough.py" /tmp/code-walkthrough-example/w
   --out /tmp/code-walkthrough-example/index.html
 ```
 
-Open `/tmp/code-walkthrough-example/index.html` in a browser. No server, CDN, or network connection is needed to view the generated page. The [format reference](references/walkthrough-format.md) describes the manifest and checkpoint files if you want to author them directly.
+Open `/tmp/code-walkthrough-example/index.html` in a browser. No server, CDN, or network connection is needed to view the generated page. Mermaid 11 and svg-pan-zoom are vendored in [assets/vendor](assets/vendor/README.md) and inlined, so the page is about 4 MB. The [format reference](references/walkthrough-format.md) describes the manifest and checkpoint files if you want to author them directly.
 
 ## Verify the skill
 
@@ -66,4 +66,4 @@ The optional browser test uses Playwright and its Chromium browser:
 node "$SKILL_DIR/tests/browser_smoke.mjs" /tmp/code-walkthrough-example/index.html
 ```
 
-See [SKILL.md](SKILL.md) for the full workflow and [references](references/) for repository analysis, execution capture, teaching depth, quiz design, and the walkthrough data format.
+See [SKILL.md](SKILL.md) for the full workflow and [references](references/) for repository analysis, execution capture, teaching depth, diagrams, quiz design, and the walkthrough data format.

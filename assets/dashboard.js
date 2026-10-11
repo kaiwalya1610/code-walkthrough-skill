@@ -125,6 +125,7 @@
     if (view.type === 'text') content = `<div class="value-text ${changed ? 'is-changed' : ''}">${esc(text(value))}</div>`;
     if (view.type === 'tree') content = `<div class="tree">${tree(value, view.title)}</div>`;
     if (view.type === 'board') content = board(view, value, old);
+    if (view.type === 'mermaid') content = diagram(view.code.replace(/\{\{\s*(\/[^}\s]*)\s*\}\}/g, (m, path) => ml(text(ptr(value, path)))), view.title);
     if (view.type === 'metrics') content = `<div class="metrics">${Object.entries(value).map(([label, v]) => {
       const d = isRecord(old) ? delta(old[label], v) : '';
       return `<div class="metric ${d ? 'is-changed' : ''}"><span class="metric-label">${esc(label)}</span><span class="metric-value">${esc(text(v))}</span>${d}</div>`;
@@ -254,19 +255,73 @@
     $('outline-tree').querySelector('[aria-current="step"]')?.scrollIntoView({block: 'nearest'});
   }
 
+  // ---- Diagrams ----
+  // Renderers emit placeholders; drawDiagrams() turns them into Mermaid SVG, cached per theme and diagram text.
+  const token = name => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
+  const rgb = hex => `rgb(${hex.slice(1).match(/../g).map(h => parseInt(h, 16)).join(', ')})`;
+  // Text inside Mermaid labels: characters that end a label or statement become numeric entities.
+  const ml = value => String(value).replace(/`/g, '').replace(/\s+/g, ' ').replace(/[#"<>;]/g, c => `#${c.charCodeAt(0)};`);
+  const diagram = (code, label, {zoom = false, links} = {}) => `<div class="diagram ${zoom ? 'zoomable' : ''}" role="group" aria-label="${esc(label)}" data-code="${esc(code)}"${links ? ` data-links="${esc(JSON.stringify(links))}"` : ''}><p class="diagram-wait muted">Drawing diagram…</p></div>`;
+  const drawn = new Map();
+  let drawnTheme = null, diagramCount = 0;
+  function configureMermaid() {
+    const t = token, font = t('sans');
+    mermaid.initialize({startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true, theme: 'base', fontFamily: font,
+      flowchart: {curve: 'basis', padding: 14, nodeSpacing: 44, rankSpacing: 56}, sequence: {mirrorActors: false, noteMargin: 8, messageMargin: 30},
+      themeVariables: {darkMode: isDark(), fontFamily: font, fontSize: '13px', background: t('surface'), textColor: t('ink'),
+        primaryColor: t('surface-2'), primaryTextColor: t('ink'), primaryBorderColor: t('line-strong'), secondaryColor: t('accent-soft'),
+        tertiaryColor: t('sunken'), lineColor: t('muted'), mainBkg: t('surface-2'), nodeBorder: t('line-strong'),
+        clusterBkg: t('sunken'), clusterBorder: t('line-strong'), titleColor: t('ink-2'), edgeLabelBackground: t('surface'),
+        actorBkg: t('surface-2'), actorBorder: t('line-strong'), actorTextColor: t('ink'), actorLineColor: t('line-strong'),
+        signalColor: t('ink-2'), signalTextColor: t('ink'), noteBkgColor: t('warn-soft'), noteTextColor: t('ink'), noteBorderColor: t('warn'),
+        labelBoxBkgColor: t('surface-2'), labelBoxBorderColor: t('line-strong'), labelTextColor: t('ink'), loopTextColor: t('ink-2')}});
+  }
+  async function drawDiagrams() {
+    const theme = isDark() ? 'dark' : 'light';
+    if (drawnTheme !== theme) { configureMermaid(); drawnTheme = theme; }
+    for (const slot of document.querySelectorAll('.diagram[data-code]:not(.is-drawn)')) {
+      // A theme change mid-loop starts a fresh pass; this one must not cache old-palette output under the new theme.
+      if (drawnTheme !== theme) return;
+      if (!slot.isConnected) continue;
+      slot.classList.add('is-drawn');
+      const key = `${theme}\n${slot.dataset.code}`;
+      if (!drawn.has(key)) drawn.set(key, mermaid.render(`diagram-${++diagramCount}`, slot.dataset.code).then(r => ({svg: r.svg}), e => ({error: e.message || String(e)})));
+      const result = await drawn.get(key);
+      // Fast stepping replaces placeholders; a result for one that has left the page is dropped.
+      if (!slot.isConnected) continue;
+      if (result.error) { slot.innerHTML = `<p class="diagram-error">This diagram could not be drawn: ${esc(result.error)}</p><pre class="diagram-source">${esc(slot.dataset.code)}</pre>`; continue; }
+      slot.innerHTML = result.svg;
+      const svg = slot.querySelector('svg'), links = slot.dataset.links ? JSON.parse(slot.dataset.links) : {};
+      slot.querySelectorAll('g.node').forEach(g => {
+        const target = links[g.id.match(/flowchart-(.+)-\d+$/)?.[1]];
+        if (target === undefined) return;
+        Object.assign(g.dataset, {step: target});
+        g.classList.add('graph-node');
+        g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button');
+      });
+      if (slot.classList.contains('zoomable') && slot.offsetWidth) {
+        const box = svg.viewBox.baseVal;
+        // Pan/zoom needs a fixed viewport: full width, natural height up to a cap, then the drawing is fitted inside.
+        svg.setAttribute('style', `width:100%;height:${Math.min(Math.max(box.height, 160), 560)}px`);
+        svgPanZoom(svg, {controlIconsEnabled: true, mouseWheelZoomEnabled: false, dblClickZoomEnabled: false, fit: true, center: true, minZoom: 0.4, maxZoom: 8});
+      }
+    }
+  }
+
+  // Lanes become sequence-diagram participants: a cross-lane cause is an arrow, work inside a lane is a note.
   function renderLanes() {
     const steps = scenario().steps, lanes = [...new Set(steps.map(s => s.lane))];
     $('lane-details').hidden = lanes.length < 2;
     if (lanes.length < 2) return;
-    const gutter = 14, dx = 28, dy = 36, top = 18, at = Object.fromEntries(steps.map((s, i) => [s.id, i]));
-    const pos = i => [gutter + i * dx, top + lanes.indexOf(steps[i].lane) * dy];
-    const width = gutter + steps.length * dx, height = top + lanes.length * dy;
-    const tracks = lanes.map((lane, r) => `<line class="lane-track" x1="0" x2="${width}" y1="${top + r * dy}" y2="${top + r * dy}"/>`).join('');
-    const links = steps.flatMap((s, i) => s.causes.map(c => { const [x1, y1] = pos(at[c]), [x2, y2] = pos(i), mx = (x1 + x2) / 2; return `<path class="lane-link ${i === stepIndex ? 'active' : ''}" d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}"/>`; })).join('');
-    const dots = steps.map((s, i) => { const [x, y] = pos(i); return `<g class="lane-dot ev ev-${s.evidence.kind} ${i < stepIndex ? 'done' : i === stepIndex ? 'current' : ''}" data-step="${i}"><title>${i + 1}. ${esc(s.title)}${s.attempt ? ` · attempt ${s.attempt}` : ''}${s.iteration ? ` · iteration ${s.iteration}` : ''} · ${esc(badge(s.evidence.kind))}</title><circle cx="${x}" cy="${y}" r="7"/><text x="${x}" y="${y + 19}" text-anchor="middle">${i + 1}</text></g>`; }).join('');
-    $('lane-chart').innerHTML = `<div class="lane-names" aria-hidden="true">${lanes.map(l => `<span title="${esc(l)}">${esc(l)}</span>`).join('')}</div><div class="lane-scroll"><svg width="${width + 10}" height="${height}" role="img" aria-label="Swimlane chart of ${steps.length} steps across ${lanes.length} lanes">${tracks}${links}${dots}</svg></div>`;
-    const chart = $('lane-chart').querySelector('.lane-scroll');
-    chart.scrollLeft = pos(stepIndex)[0] - chart.clientWidth / 2;
+    const lane = s => `L${lanes.indexOf(s.lane)}`, byId = Object.fromEntries(steps.map(s => [s.id, s]));
+    const body = steps.flatMap((s, i) => {
+      const label = `${i + 1}. ${ml(s.title)}${s.attempt ? ` (attempt ${s.attempt})` : ''}`;
+      const from = [...new Set(s.causes.map(c => lane(byId[c])).filter(l => l !== lane(s)))];
+      const lines = from.length ? from.map(l => `  ${l}->>${lane(s)}: ${label}`) : [`  Note over ${lane(s)}: ${label}`];
+      return i === stepIndex ? [`  rect ${rgb(token('accent-soft'))}`, ...lines, '  end'] : lines;
+    });
+    const code = ['sequenceDiagram', ...lanes.map((l, i) => `  participant L${i} as ${ml(l)}`), ...body].join('\n');
+    $('lane-chart').innerHTML = diagram(code, `Sequence of ${steps.length} steps across ${lanes.length} lanes`);
   }
 
   const targetStep = id => { const steps = scenario().steps, next = steps.findIndex((s, i) => i > stepIndex && s.node === id); return next >= 0 ? next : steps.findIndex(s => s.node === id); };
@@ -283,37 +338,47 @@
     $('flow').innerHTML = `<div class="flow-track">${chips.join('<span class="flow-arrow" aria-hidden="true">→</span>')}</div><p class="flow-note"><b>${esc(nodes[current.node].label)}</b> · ${esc(nodes[current.node].description)} <button type="button" class="link" data-view="overview" data-anchor="map">Full map</button></p>`;
   }
 
-  function graphSvg() {
+  // The codebase map as a Mermaid flowchart, coloured by how far the current scenario has walked.
+  const shapes = {process: ['["', '"]'], entry: ['(["', '"])'], decision: ['{"', '"}'], store: ['[("', '")]'], external: ['[["', '"]]'], queue: ['[/"', '"/]'], output: ['[\\"', '"\\]']};
+  function mapCode() {
     const nodes = data.graph.nodes, edges = data.graph.edges, steps = scenario().steps, current = step();
-    const map = Object.fromEntries(nodes.map(n => [n.id, n]));
+    const id = Object.fromEntries(nodes.map((n, i) => [n.id, `n${i}`]));
     const visits = {}, totals = {}, walked = new Set();
     steps.forEach((s, i) => { totals[s.node] = (totals[s.node] || 0) + 1; if (i <= stepIndex) visits[s.node] = (visits[s.node] || 0) + 1; if (i && i <= stepIndex) walked.add(`${steps[i - 1].node}>${s.node}`); });
     const latest = stepIndex ? `${steps[stepIndex - 1].node}>${current.node}` : '';
-    const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
-    const x0 = Math.min(...xs) - 20, y0 = Math.min(...ys) - 20, w = Math.max(...xs) - x0 + 225, h = Math.max(...ys) - y0 + 90;
-    const paths = edges.map(e => {
-      const a = map[e.from], b = map[e.to], k = `${e.from}>${e.to}`, self = e.from === e.to;
-      let d, lx, ly;
-      // A two-way pair is drawn as two parallel curves so neither hides the other or its label.
-      const o = edges.some(r => r.from === e.to && r.to === e.from) && !self ? (e.from < e.to ? -9 : 9) : 0;
-      if (self) [d, lx, ly] = [`M ${a.x + 155} ${a.y + 15} C ${a.x + 195} ${a.y - 30},${a.x + 195} ${a.y + 75},${a.x + 155} ${a.y + 38}`, a.x + 200, a.y + 26];
-      else if (Math.abs(a.y - b.y) < 50) {
-        // Same row: connect facing sides so the curve does not cross either box.
-        const ax = b.x >= a.x ? a.x + 160 : a.x, bx = b.x >= a.x ? b.x : b.x + 160, ay = a.y + 25 + o, by = b.y + 25 + o, mx = (ax + bx) / 2;
-        [d, lx, ly] = [`M ${ax} ${ay} C ${mx} ${ay},${mx} ${by},${bx} ${by}`, mx, (ay + by) / 2 + (o > 0 ? 15 : -7)];
-      } else {
-        const down = b.y > a.y, ax = a.x + 80 + o * 2, ay = down ? a.y + 50 : a.y, bx = b.x + 80 + o * 2, by = down ? b.y : b.y + 50, my = (ay + by) / 2;
-        [d, lx, ly] = [`M ${ax} ${ay} C ${ax} ${my},${bx} ${my},${bx} ${by}`, (ax + bx) / 2 + o * 4, my - 5];
-      }
-      return `<path class="graph-edge ${k === latest ? 'latest' : walked.has(k) ? 'walked' : ''}" d="${d}" marker-end="url(#graph-arrow)"><title>${esc(e.label)}</title></path><text class="graph-label" x="${lx}" y="${ly}" text-anchor="${self ? 'start' : 'middle'}">${esc(e.label)}</text>`;
-    }).join('');
-    const boxes = nodes.map(n => {
-      const jump = targetStep(n.id), active = n.id === current.node;
-      const classes = ['graph-node', active && 'active', visits[n.id] && 'visited', !totals[n.id] && 'unused'].filter(Boolean).join(' ');
-      const note = totals[n.id] ? `${visits[n.id] || 0} of ${plural(totals[n.id], 'visit')}` : 'not in this scenario';
-      return `<g class="${classes}" transform="translate(${n.x},${n.y})" ${jump >= 0 ? `data-step="${jump}"` : ''}><title>${esc(n.label)}: ${esc(n.description)} (${note})</title><rect width="160" height="50" rx="10"/><text x="80" y="23" text-anchor="middle">${esc(n.label)}</text><text class="visits" x="80" y="39" text-anchor="middle">${note}</text></g>`;
-    }).join('');
-    return `<svg width="${w}" height="${h}" viewBox="${x0} ${y0} ${w} ${h}" role="img" aria-label="Codebase flow; the current step is at ${esc(map[current.node].label)}"><defs><marker id="graph-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path class="graph-arrow" d="M0,0 L0,6 L6,3 z"/></marker></defs>${paths}${boxes}</svg>`;
+    const box = n => {
+      const [open, close] = shapes[n.shape || 'process'], note = totals[n.id] ? `${visits[n.id] || 0} of ${plural(totals[n.id], 'visit')}` : 'not in this scenario';
+      return `  ${id[n.id]}${open}${ml(n.label)}<br/><small>${note}</small>${close}`;
+    };
+    const groups = [...new Set(nodes.map(n => n.group).filter(Boolean))];
+    const lines = [`flowchart ${data.graph.direction || 'LR'}`, ...nodes.filter(n => !n.group).map(box),
+      ...groups.flatMap((g, i) => [`  subgraph g${i}["${ml(g)}"]`, ...nodes.filter(n => n.group === g).map(box), '  end']),
+      ...edges.map((e, i) => `  ${id[e.from]} e${i}@-->|"${ml(e.label)}"| ${id[e.to]}`)];
+    edges.forEach((e, i) => {
+      const k = `${e.from}>${e.to}`;
+      if (k === latest) lines.push(`  e${i}@{ animate: true }`, `  linkStyle ${i} stroke:${token('accent')},stroke-width:2.5px`);
+      else if (walked.has(k)) lines.push(`  linkStyle ${i} stroke:${token('accent-line')},stroke-width:2px`);
+    });
+    const tagged = (name, test) => { const ids = nodes.filter(test).map(n => id[n.id]); if (ids.length) lines.push(`  class ${ids.join(',')} ${name}`); };
+    lines.push(`  classDef current fill:${token('accent')},stroke:${token('accent')},color:${token('accent-ink')},stroke-width:2px`,
+      `  classDef visited fill:${token('accent-soft')},stroke:${token('accent-line')},color:${token('ink')}`,
+      `  classDef unused fill:${token('surface')},stroke:${token('line')},color:${token('muted')},stroke-dasharray:4 3`);
+    tagged('visited', n => visits[n.id] && n.id !== current.node);
+    tagged('unused', n => !totals[n.id]);
+    tagged('current', n => n.id === current.node);
+    const links = Object.fromEntries(nodes.map(n => [id[n.id], targetStep(n.id)]).filter(([, i]) => i >= 0));
+    return {code: lines.join('\n'), links};
+  }
+
+  // A branch as a two-way flowchart: the taken edge is solid and green, the other dashed and muted.
+  function decisionCode(d, result) {
+    return ['flowchart LR', `  q{{"${result ? 'True' : 'False'}"}}`,
+      `  q -->|"taken"| t["✓ ${ml(d.taken)}"]`, `  q -.->|"not taken in this run"| n["${ml(d.notTaken)}"]`,
+      `  classDef cond fill:${token('accent-soft')},stroke:${token('accent')},color:${token('ink')}`,
+      `  classDef taken fill:${token('ok-soft')},stroke:${token('ok')},color:${token('ink')},stroke-width:2px`,
+      `  classDef skipped fill:${token('surface')},stroke:${token('line-strong')},color:${token('muted')},stroke-dasharray:4 3`,
+      '  class q cond', '  class t taken', '  class n skipped',
+      `  linkStyle 0 stroke:${token('ok')},stroke-width:2.5px`, `  linkStyle 1 stroke:${token('line-strong')}`].join('\n');
   }
 
   function scenarioProgress(s) { return s.steps.filter(e => visited.has(`${s.id}/${e.id}`)).length; }
@@ -350,7 +415,8 @@
         <div><span class="how-num">3</span><b>Quiz</b><p>Multiple choice, fill-in-the-blank and ordering questions, each linked back to its step.</p></div>
       </section>
       <section class="ov-section"><h3 class="section-title">Scenarios</h3><div class="scenario-grid">${cards}</div></section>
-      <section class="ov-section" id="ov-map"><h3 class="section-title">Codebase map</h3><p class="muted">Highlighted for “${esc(scenario().title)}” up to step ${stepIndex + 1}. Select a box to open its next step. The path follows walkthrough order and does not prove that every edge executed.</p><div class="graph-scroll">${graphSvg()}</div><details class="fold"><summary>Nodes &amp; relationships as text</summary><ul>${data.graph.nodes.map(n => `<li><b>${esc(n.label)}:</b> ${esc(n.description)}</li>`).join('')}${data.graph.edges.map(e => `<li>${esc(nodes[e.from].label)} → ${esc(nodes[e.to].label)}: ${esc(e.label)}</li>`).join('')}</ul></details></section>
+      <section class="ov-section" id="ov-map"><h3 class="section-title">Codebase map</h3><p class="muted">Highlighted for “${esc(scenario().title)}” up to step ${stepIndex + 1}. Select a box to open its next step; drag to pan and use the controls to zoom. The path follows walkthrough order and does not prove that every edge executed.</p>${(m => diagram(m.code, `Codebase map; the current step is at ${nodes[scenario().steps[stepIndex].node].label}`, {zoom: true, links: m.links}))(mapCode())}<details class="fold"><summary>Nodes &amp; relationships as text</summary><ul>${data.graph.nodes.map(n => `<li><b>${esc(n.label)}:</b> ${esc(n.description)}</li>`).join('')}${data.graph.edges.map(e => `<li>${esc(nodes[e.from].label)} → ${esc(nodes[e.to].label)}: ${esc(e.label)}</li>`).join('')}</ul></details></section>
+      ${data.diagrams ? `<section class="ov-section"><h3 class="section-title">Diagrams</h3><div class="diagram-list">${data.diagrams.map((d, i) => `<figure class="diagram-figure">${d.title ? `<figcaption><b>${esc(d.title)}</b>${d.caption ? ` · ${rich(d.caption, false)}` : ''}</figcaption>` : ''}${diagram(d.code, d.title || `Diagram ${i + 1}`, {zoom: true})}</figure>`).join('')}</div></section>` : ''}
       <section class="ov-section"><h3 class="section-title">Learning path</h3><ol class="learning-path">${learning}</ol></section>
       <div class="ov-columns">
         <section class="ov-section"><h3 class="section-title">Entry points</h3><ul class="plain">${analysis.entrypoints.map(v => `<li><code>${esc(v)}</code></li>`).join('')}</ul><h3 class="section-title">What the code establishes</h3><ul class="checks">${analysis.findings.map(v => `<li>${rich(v)}</li>`).join('')}</ul></section>
@@ -359,6 +425,7 @@
       <section class="ov-section"><h3 class="section-title">Coverage &amp; limits</h3><p>${analysis.inventoryCount} paths inventoried; ${total} coverage entries recorded. Directory entries can summarize a subsystem; an inventory is not proof of reading.</p><div class="coverage-bar" aria-hidden="true">${bar}</div><div class="coverage-counts">${Object.entries(build.coverageCounts).map(([k, v]) => `<span class="cov-key cov-key-${esc(k)}"><b>${v}</b> ${esc(k)}</span>`).join('')}</div><details class="fold"><summary>Coverage ledger (${total})</summary><div class="table-scroll"><table><thead><tr><th>Path</th><th>Review</th><th>Reason</th></tr></thead><tbody>${analysis.coverage.map(c => `<tr><td><code>${esc(c.path)}</code></td><td>${esc(c.status)}</td><td>${esc(c.reason)}</td></tr>`).join('')}</tbody></table></div></details>${analysis.limitations.length ? `<h4>Limitations</h4><ul class="limits">${analysis.limitations.map(v => `<li>${rich(v)}</li>`).join('')}</ul>` : ''}<div class="legend">${Object.entries(labels).map(([k, v]) => `<span class="badge ev ev-${k}">${v}</span>`).join('')}</div></section>
       <p class="build-info muted">Built ${esc(build.created)} · commit ${esc(build.commit)} · working tree ${esc(build.workingTree)} · ${build.sourceCount} source files checked · ${build.checkpointFiles} checkpoint files loaded. Values and code are frozen into this offline page.</p>
     </div>`;
+    drawDiagrams();
   }
 
   function renderStory() {
@@ -368,11 +435,11 @@
     $('crumbs').innerHTML = `<button type="button" class="crumb" data-view="overview">${esc(scenario().title)}</button><span class="crumb-sep">›</span><span class="crumb">Chapter ${chapterNo} of ${chapters.length}: ${esc(s.chapter)}</span><span class="crumb-sep">›</span><span class="crumb current">Step ${stepIndex + 1} of ${count}</span>`;
     $('tags').innerHTML = `<span class="badge ev ev-${kind}">${badge(kind)}</span>${lanes > 1 ? `<span class="badge">${esc(s.lane)}</span>` : ''}${s.iteration ? `<span class="tag">iteration ${s.iteration}</span>` : ''}${s.attempt ? `<span class="tag">attempt ${s.attempt}</span>` : ''}`;
     const meta = chapterMeta[s.chapter], opens = stepIndex === 0 || steps[stepIndex - 1].chapter !== s.chapter;
-    $('chapter-intro').innerHTML = meta && opens ? `<section class="chapter-intro"><p class="eyebrow">Chapter ${chapterNo} · ${esc(s.chapter)}</p><p>${rich(meta.summary)}</p>${meta.goals ? `<ul>${meta.goals.map(g => `<li>${rich(g)}</li>`).join('')}</ul>` : ''}</section>` : '';
+    $('chapter-intro').innerHTML = meta && opens ? `<section class="chapter-intro"><p class="eyebrow">Chapter ${chapterNo} · ${esc(s.chapter)}</p><p>${rich(meta.summary)}</p>${meta.goals ? `<ul>${meta.goals.map(g => `<li>${rich(g)}</li>`).join('')}</ul>` : ''}${meta.diagram ? `<figure class="diagram-figure">${diagram(meta.diagram.code, meta.diagram.title || s.chapter)}${meta.diagram.caption ? `<figcaption>${rich(meta.diagram.caption)}</figcaption>` : ''}</figure>` : ''}</section>` : '';
     $('step-title').textContent = s.title;
     $('explanation').innerHTML = rich(s.explanation);
     const result = ptr(s.state, s.decision?.resultPath ?? '');
-    $('decision').innerHTML = s.decision ? `<section class="decision"><div class="decision-question"><span class="diamond" aria-hidden="true"><span>?</span></span><div><span class="eyebrow">Branch</span><p>${rich(s.decision.condition)}</p></div><b class="decision-result ${result ? 'true' : 'false'}">${result ? 'True' : 'False'}</b></div><div class="decision-paths"><div class="path taken"><span class="path-label">✓ Taken</span><span>${rich(s.decision.taken)}</span></div><div class="path not-taken"><span class="path-label">✕ Not taken in this run</span><span>${rich(s.decision.notTaken)}</span></div></div></section>` : '';
+    $('decision').innerHTML = s.decision ? `<section class="decision"><div class="decision-question"><span class="diamond" aria-hidden="true"><span>?</span></span><div><span class="eyebrow">Branch</span><p>${rich(s.decision.condition)}</p></div><b class="decision-result ${result ? 'true' : 'false'}">${result ? 'True' : 'False'}</b></div>${diagram(decisionCode(s.decision, result), `Taken: ${s.decision.taken}. Not taken in this run: ${s.decision.notTaken}.`)}</section>` : '';
     const notes = notesOf(s);
     $('line-notes').hidden = !notes.length;
     $('line-notes').innerHTML = notes.length ? `<h3 class="section-title">Line by line</h3><ol class="note-list">${notes.map(n => `<li data-note="${n.i}"><button type="button" class="note-num" data-note="${n.i}" aria-label="Show line ${n.line} in the code">${n.i + 1}</button><span class="note-line">${s.sources.length > 1 ? `${esc(n.file.split('/').at(-1))}:` : 'line '}${n.line}</span><span class="note-text">${rich(n.text)}</span></li>`).join('')}</ol>` : '';
@@ -406,6 +473,7 @@
     if (shownState !== `${scenarioIndex}/${stepIndex}`) $('story').scrollTop = 0;
     shownState = `${scenarioIndex}/${stepIndex}`;
     animate();
+    drawDiagrams();
     updateHash();
   }
 
@@ -427,7 +495,9 @@
   // ---- Theme, outline, views, navigation ----
   const isDark = () => (document.documentElement.dataset.theme || (prefersDark.matches ? 'dark' : 'light')) === 'dark';
   function syncTheme() { $('theme').textContent = isDark() ? '☀' : '☾'; $('theme').setAttribute('aria-label', `Switch to ${isDark() ? 'light' : 'dark'} theme`); $('theme').title = `Switch to ${isDark() ? 'light' : 'dark'} theme (T)`; }
-  function toggleTheme() { document.documentElement.dataset.theme = isDark() ? 'light' : 'dark'; syncTheme(); }
+  // Mermaid bakes colours into each SVG, so a theme change redraws the visible view's diagrams.
+  function refresh() { if (view === 'overview') renderOverview(); if (view === 'walk') render(); }
+  function toggleTheme() { document.documentElement.dataset.theme = isDark() ? 'light' : 'dark'; syncTheme(); refresh(); }
 
   const outlineOpen = () => narrow.matches ? document.body.classList.contains('outline-open') : !document.body.classList.contains('outline-collapsed');
   function setOutline(open) {
@@ -717,7 +787,7 @@
   $('scrubber').addEventListener('input', e => { stop(); go(Number(e.target.value)); });
   $('speed').addEventListener('change', stop);
   $('theme').addEventListener('click', toggleTheme);
-  prefersDark.addEventListener('change', syncTheme);
+  prefersDark.addEventListener('change', () => { syncTheme(); refresh(); });
   $('toggle-outline').addEventListener('click', () => setOutline(!outlineOpen()));
   $('outline-scrim').addEventListener('click', () => setOutline(false));
   $('return-quiz').addEventListener('click', () => setView('quiz'));
@@ -744,6 +814,7 @@
     setView(next); $(`tab-${next}`).focus();
   });
   document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.classList?.contains('graph-node')) { e.target.dispatchEvent(new MouseEvent('click', {bubbles: true})); return; }
     if (e.key === 'Escape') { hideTerm(); if (document.body.classList.contains('outline-open')) setOutline(false); }
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target.closest?.('.views') && ['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
